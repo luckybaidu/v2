@@ -10,21 +10,43 @@ none='\e[0m'
 # Root
 [[ $(id -u) != 0 ]] && echo -e " 哎呀……请使用 ${red}root ${none}用户运行 ${yellow}~(^_^) ${none}" && exit 1
 
-_version="v3.05"
+_version="v3.26"
 
 cmd="apt-get"
 
 sys_bit=$(uname -m)
 
-if [[ $sys_bit == "i386" || $sys_bit == "i686" ]]; then
+case $sys_bit in
+i[36]86)
 	v2ray_bit="32"
-elif [[ $sys_bit == "x86_64" ]]; then
+	caddy_arch="386"
+	;;
+x86_64)
 	v2ray_bit="64"
-else
-	echo -e " 哈哈……这个 ${red}辣鸡脚本${none} 不支持你的系统。 ${yellow}(-_-) ${none}" && exit 1
-fi
+	caddy_arch="amd64"
+	;;
+*armv6*)
+	v2ray_bit="arm"
+	caddy_arch="arm6"
+	;;
+*armv7*)
+	v2ray_bit="arm"
+	caddy_arch="arm7"
+	;;
+*aarch64* | *armv8*)
+	v2ray_bit="arm64"
+	caddy_arch="arm64"
+	;;
+*)
+	echo -e " 
+	哈哈……这个 ${red}辣鸡脚本${none} 不支持你的系统。 ${yellow}(-_-) ${none}
 
-if [[ -f /usr/bin/yum ]]; then
+	备注: 仅支持 Ubuntu 16+ / Debian 8+ / CentOS 7+ 系统
+	" && exit 1
+	;;
+esac
+
+if [[ $(command -v yum) ]]; then
 
 	cmd="yum"
 
@@ -110,7 +132,7 @@ create_vmess_URL_config() {
 		cat >/etc/v2ray/vmess_qr.json <<-EOF
 		{
 			"v": "2",
-			"ps": "v2ray6.com_${domain}",
+			"ps": "233v2.com_${domain}",
 			"add": "${domain}",
 			"port": "443",
 			"id": "${v2ray_id}",
@@ -127,7 +149,7 @@ create_vmess_URL_config() {
 		cat >/etc/v2ray/vmess_qr.json <<-EOF
 		{
 			"v": "2",
-			"ps": "v2ray6.com_${ip}",
+			"ps": "233v2.com_${ip}",
 			"add": "${ip}",
 			"port": "${v2ray_port}",
 			"id": "${v2ray_id}",
@@ -189,35 +211,9 @@ view_shadowsocks_config_info() {
 }
 get_shadowsocks_config_qr_link() {
 	if [[ $shadowsocks ]]; then
-		echo
-		echo -e "$green 正在生成链接.... 稍等片刻即可....$none"
-		echo
 		get_ip
-		local ss="ss://$(echo -n "${ssciphers}:${sspass}@${ip}:${ssport}" | base64 -w 0)#v2ray6.com_ss_${ip}"
-		echo "${ss}" >/tmp/233blog_shadowsocks.txt
-		cat /tmp/233blog_shadowsocks.txt | qrencode -s 50 -o /tmp/233blog_shadowsocks.png
-
-		local random=$(echo $RANDOM-$RANDOM-$RANDOM | base64 -w 0)
-		local link=$(curl -s --upload-file /tmp/233blog_shadowsocks.png "https://transfer.sh/${random}_v2ray6_shadowsocks.png")
-		if [[ $link ]]; then
-			echo
-			echo "---------- Shadowsocks 二维码链接 -------------"
-			echo
-			echo -e "$yellow 链接 = $cyan$link$none"
-			echo
-			echo -e " 温馨提示...$red Shadowsocks Win 4.0.6 $none客户端可能无法识别该二维码"
-			echo
-			echo "备注...链接将在 14 天后失效"
-			echo
-			echo "提醒...请不要把链接分享出去...除非你有特别的理由...."
-			echo
-		else
-			echo
-			echo -e "$red 哎呀呀呀...出错咯...请重试$none"
-			echo
-		fi
-		rm -rf /tmp/233blog_shadowsocks.png
-		rm -rf /tmp/233blog_shadowsocks.txt
+		_load qr.sh
+		_ss_qr
 	else
 		shadowsocks_config
 	fi
@@ -1767,7 +1763,9 @@ change_proxy_site_config() {
 }
 domain_check() {
 	# test_domain=$(dig $new_domain +short)
-	test_domain=$(ping $new_domain -c 1 | grep -oE -m1 "([0-9]{1,3}\.){3}[0-9]{1,3}")
+	# test_domain=$(ping $new_domain -c 1 -4 | grep -oE -m1 "([0-9]{1,3}\.){3}[0-9]{1,3}")
+	# test_domain=$(wget -qO- --header='accept: application/dns-json' "https://cloudflare-dns.com/dns-query?name=$new_domain&type=A" | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}" | head -1)
+	test_domain=$(curl -sH 'accept: application/dns-json' "https://cloudflare-dns.com/dns-query?name=$new_domain&type=A" | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}" | head -1)
 	if [[ $test_domain != $ip ]]; then
 		echo
 		echo -e "$red 检测域名解析错误....$none"
@@ -2159,7 +2157,7 @@ get_v2ray_config() {
 				echo
 				echo -e "${yellow} HTTP 监听端口 = ${cyan}6666$none"
 				echo
-				echo "V2Ray 客户端使用教程: https://v2ray6.com/post/4/"
+				echo "V2Ray 客户端使用教程: https://233v2.com/post/4/"
 				echo
 				break
 			else
@@ -2171,32 +2169,8 @@ get_v2ray_config() {
 
 }
 get_v2ray_config_link() {
-	echo
-	echo -e "$green 正在生成链接.... 稍等片刻即可....$none"
-	echo
-	local random=$(echo $RANDOM-$RANDOM-$RANDOM | base64 -w 0)
-	local link=$(curl -s --upload-file $v2ray_client_config "https://transfer.sh/${random}_v2ray6_v2ray.json")
-	if [[ $link ]]; then
-		echo
-		echo "---------- V2Ray 客户端配置文件链接 -------------"
-		echo
-		echo -e "$yellow 链接 = $cyan$link$none"
-		echo
-		echo -e "$yellow SOCKS 监听端口 = ${cyan}2333${none}"
-		echo
-		echo -e "${yellow} HTTP 监听端口 = ${cyan}6666$none"
-		echo
-		echo " V2Ray 客户端使用教程: https://v2ray6.com/post/4/"
-		echo
-		echo "备注...链接将在 14 天后失效"
-		echo
-		echo "提醒...请不要把链接分享出去...除非你有特别的理由...."
-		echo
-	else
-		echo
-		echo -e "$red 哎呀呀呀...出错咯...请重试$none"
-		echo
-	fi
+	_load client_file.sh
+	_get_client_file
 }
 create_v2ray_config_text() {
 
@@ -2208,7 +2182,7 @@ create_v2ray_config_text() {
 	if [[ $v2ray_transport == [45] ]]; then
 		if [[ ! $caddy ]]; then
 			echo
-			echo " 警告！请自行配置 TLS...教程: https://v2ray6.com/post/3/"
+			echo " 警告！请自行配置 TLS...教程: https://233v2.com/post/3/"
 		fi
 		echo
 		echo "地址 (Address) = ${domain}"
@@ -2261,7 +2235,7 @@ create_v2ray_config_text() {
 	fi
 	echo "---------- END -------------"
 	echo
-	echo "V2Ray 客户端使用教程: https://v2ray6.com/post/4/"
+	echo "V2Ray 客户端使用教程: https://233v2.com/post/4/"
 	echo
 }
 get_v2ray_config_info_link() {
@@ -2270,14 +2244,14 @@ get_v2ray_config_info_link() {
 	echo
 	create_v2ray_config_text >/tmp/233blog_v2ray.txt
 	local random=$(echo $RANDOM-$RANDOM-$RANDOM | base64 -w 0)
-	local link=$(curl -s --upload-file /tmp/233blog_v2ray.txt "https://transfer.sh/${random}_v2ray6_v2ray.txt")
+	local link=$(curl -s --upload-file /tmp/233blog_v2ray.txt "https://transfer.sh/${random}_233v2_v2ray.txt")
 	if [[ $link ]]; then
 		echo
 		echo "---------- V2Ray 配置信息链接-------------"
 		echo
 		echo -e "$yellow 链接 = $cyan$link$none"
 		echo
-		echo -e " V2Ray 客户端使用教程: https://v2ray6.com/post/4/"
+		echo -e " V2Ray 客户端使用教程: https://233v2.com/post/4/"
 		echo
 		echo "备注...链接将在 14 天后失效..."
 		echo
@@ -2294,40 +2268,8 @@ get_v2ray_config_qr_link() {
 
 	create_vmess_URL_config
 
-	echo
-	echo -e "$green 正在生成链接.... 稍等片刻即可....$none"
-	echo
-	local vmess="vmess://$(cat /etc/v2ray/vmess_qr.json | tr -d '\n' | base64 -w 0)"
-	echo $vmess | tr -d '\n' >/etc/v2ray/vmess.txt
-	cat /etc/v2ray/vmess.txt | qrencode -s 50 -o /tmp/233blog_v2ray.png
-	local random=$(echo $RANDOM-$RANDOM-$RANDOM | base64 -w 0)
-	local link=$(curl -s --upload-file /tmp/233blog_v2ray.png "https://transfer.sh/${random}_v2ray6_v2ray.png")
-	if [[ $link ]]; then
-		echo
-		echo "---------- V2Ray 二维码链接 -------------"
-		echo
-		echo -e "$yellow 适用于 V2RayNG v0.4.1+ / Kitsunebi = $cyan$link$none"
-		echo
-		echo
-		echo -e "$red 友情提醒: 请务必核对扫码结果 (V2RayNG 除外) $none"
-		echo
-		echo
-		echo " V2Ray 客户端使用教程: https://v2ray6.com/post/4/"
-		echo
-		echo "备注...链接将在 14 天后失效"
-		echo
-		echo "提醒...请不要把链接分享出去...除非你有特别的理由...."
-		echo
-	else
-		echo
-		echo -e "$red 哎呀呀呀...出错咯...$none"
-		echo
-		echo -e "请尝试使用${cyan} v2ray qr ${none}重新生成"
-		echo
-	fi
-	rm -rf /tmp/233blog_v2ray.png
-	rm -rf /etc/v2ray/vmess_qr.json
-	rm -rf /etc/v2ray/vmess.txt
+	_load qr.sh
+	_qr_create
 }
 get_v2ray_vmess_URL_link() {
 	create_vmess_URL_config
@@ -2375,33 +2317,14 @@ other() {
 install_bbr() {
 	local test1=$(sed -n '/net.ipv4.tcp_congestion_control/p' /etc/sysctl.conf)
 	local test2=$(sed -n '/net.core.default_qdisc/p' /etc/sysctl.conf)
-	if [[ $(uname -r | cut -b 1) -eq 4 ]]; then
-		case $(uname -r | cut -b 3-4) in
-		9. | [1-9][0-9])
-			if [[ $test1 == "net.ipv4.tcp_congestion_control = bbr" && $test2 == "net.core.default_qdisc = fq" ]]; then
-				local is_bbr=true
-			else
-				local try_enable_bbr=true
-			fi
-			;;
-		esac
-	fi
-	if [[ $is_bbr ]]; then
+	if [[ $test1 == "net.ipv4.tcp_congestion_control = bbr" && $test2 == "net.core.default_qdisc = fq" ]]; then
 		echo
 		echo -e "$green BBR 已经启用啦...无需再安装$none"
 		echo
-	elif [[ $try_enable_bbr ]]; then
-		sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
-		sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf
-		echo "net.ipv4.tcp_congestion_control = bbr" >>/etc/sysctl.conf
-		echo "net.core.default_qdisc = fq" >>/etc/sysctl.conf
-		sysctl -p >/dev/null 2>&1
-		echo
-		echo -e "$green ..由于你的 VPS 内核支持开启 BBR ...已经为你启用 BBR 优化....$none"
-		echo
 	else
-		# https://teddysun.com/489.html
-		bash <(curl -s -L https://github.com/teddysun/across/raw/master/bbr.sh)
+		_load bbr.sh
+		_try_enable_bbr
+		[[ ! $enable_bbr ]] && bash <(curl -s -L https://github.com/teddysun/across/raw/master/bbr.sh)
 	fi
 }
 install_lotserver() {
@@ -2705,7 +2628,7 @@ do_service() {
 }
 _help() {
 	echo
-	echo "........... V2Ray 管理脚本帮助信息 by v2ray6.com .........."
+	echo "........... V2Ray 管理脚本帮助信息 by 233v2.com .........."
 	echo -e "
 	${green}v2ray menu $none管理 V2Ray (同等于直接输入 v2ray)
 
@@ -2746,17 +2669,17 @@ menu() {
 	clear
 	while :; do
 		echo
-		echo "........... V2Ray 管理脚本 $_version by v2ray6.com .........."
+		echo "........... V2Ray 管理脚本 $_version by 233v2.com .........."
 		echo
 		echo -e "## V2Ray 版本: $cyan$v2ray_ver$none  /  V2Ray 状态: $v2ray_status ##"
 		echo
-		echo "帮助说明: https://v2ray6.com/post/1/"
+		echo "帮助说明: https://233v2.com/post/1/"
 		echo
 		echo "反馈问题: https://github.com/233boy/v2ray/issues"
 		echo
 		echo "TG 群组: https://t.me/blog233"
 		echo
-		echo "捐赠脚本作者: https://v2ray6.com/donate/"
+		echo "捐赠脚本作者: https://233v2.com/donate/"
 		echo
 		echo "捐助 V2Ray: https://www.v2ray.com/chapter_00/02_donate.html"
 		echo
@@ -2784,7 +2707,7 @@ menu() {
 		echo
 		echo -e "温馨提示...如果你不想执行选项...按$yellow Ctrl + C $none即可退出"
 		echo
-		read -p "$(echo -e "请选择菜单 [${magenta}1-9$none]:")" choose
+		read -p "$(echo -e "请选择菜单 [${magenta}1-11$none]:")" choose
 		if [[ -z $choose ]]; then
 			exit 1
 		else
